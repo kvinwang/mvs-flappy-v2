@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Flappy Bird Multiplayer</title>
+  <style>
+    canvas {
+      border: 1px solid black;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="gameCanvas" width="800" height="600"></canvas>
+  <script src="/socket.io/socket.io.js"></script>
+  <script>
+    const socket = io();
+    const canvas = document.getElementById('gameCanvas');
+    const context = canvas.getContext('2d');
+    const players = {};
+    let columns = [];
+
+    socket.on('currentPlayers', (currentPlayers) => {
+      Object.keys(currentPlayers).forEach((playerId) => {
+        players[playerId] = currentPlayers[playerId];
+      });
+      drawGame();
+    });
+
+    socket.on('currentColumns', (currentColumns) => {
+      columns = currentColumns;
+      drawGame();
+    });
+
+    socket.on('newPlayer', (data) => {
+      players[data.playerId] = data.playerInfo;
+      drawGame();
+    });
+
+    socket.on('gameState', (gameState) => {
+      Object.keys(gameState.players).forEach((playerId) => {
+        players[playerId] = gameState.players[playerId];
+      });
+      columns = gameState.columns;
+      drawGame();
+    });
+
+    socket.on('playerDisconnected', (playerId) => {
+      delete players[playerId];
+      drawGame();
+    });
+
+    function drawGame() {
+      context.clearRect(0, 0, canvas.width, canvas.height);
+      drawColumns();
+      drawPlayers();
+    }
+
+    function drawPlayers() {
+      Object.keys(players).forEach((playerId) => {
+        const player = players[playerId];
+        context.fillStyle = player.color;
+        context.fillRect(player.x, player.y, 30, 30); // Draw player as a square
+        context.fillText(player.score, player.x, player.y - 10); // Draw score above the player
+      });
+    }
+
+    function drawColumns() {
+      context.fillStyle = 'green';
+      columns.forEach((column) => {
+        context.fillRect(column.x, 0, column.width, column.y);
+        context.fillRect(column.x, column.y + column.gap, column.width, canvas.height - column.y - column.gap);
+      });
+    }
+
+    window.addEventListener('keydown', (event) => {
+      if (event.key === ' ') { // Space bar to jump
+        socket.emit('playerJump');
+      }
+    });
+  </script>
+</body>
+</html>
