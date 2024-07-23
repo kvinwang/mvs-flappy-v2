@@ -1,9 +1,26 @@
-// server.js
-const express = require('express');
-const http = require('http');
-const socketIo = require('socket.io');
+// Wapo doesn't support the node.js http server API. Here, we implement a node-like http server using Wapo APIs.
+import http from './http';
+// Wapo doesn't support file system APIs. We use webpack to bundle the files into the bundled js file
+// and extract them to the memory file system at runtime.
+import { loadAssets } from "./loadAssets";
 
-const app = express();
+loadAssets();
+
+// server.js
+const socketIo = require('socket.io');
+const fs = require('fs');
+
+// There are some troubles using the express framework. Here, we use a custom http handler as a workaround.
+function app(req, res) {
+  const path = req.url.split('?')[0];
+  switch (path) {
+    case '/':
+      const html = fs.readFileSync('/public/index.html', 'utf8');
+      res.writeHead(200, { 'Content-Type': 'text/html' });
+      res.end(html);
+      break;
+  }
+}
 const server = http.createServer(app);
 const io = socketIo(server);
 
@@ -14,8 +31,6 @@ const COLUMN_GAP = 200;
 const COLUMN_SPEED = 2;
 const GRAVITY = 0.5;
 const JUMP_STRENGTH = -10;
-
-app.use(express.static(__dirname + '/public'));
 
 function getRandomColor() {
   const letters = '0123456789ABCDEF';
@@ -117,6 +132,31 @@ function gameLoop() {
 
 setInterval(gameLoop, 1000 / 60); // 60 FPS
 
-server.listen(3000, () => {
-  console.log('listening on *:3000');
+const CERT = `-----BEGIN CERTIFICATE-----
+MIIBZzCCAQ2gAwIBAgIIbELHFTzkfHAwCgYIKoZIzj0EAwIwITEfMB0GA1UEAwwW
+cmNnZW4gc2VsZiBzaWduZWQgY2VydDAgFw03NTAxMDEwMDAwMDBaGA80MDk2MDEw
+MTAwMDAwMFowITEfMB0GA1UEAwwWcmNnZW4gc2VsZiBzaWduZWQgY2VydDBZMBMG
+ByqGSM49AgEGCCqGSM49AwEHA0IABOoRzdEagFDZf/im79Z5JUyeXP96Yww6nH8X
+ROvXOESnE0yFtlVjdj0NTNXT2m+PWzuxsjvPVBWR/tpDldjTW8CjLTArMCkGA1Ud
+EQQiMCCCE2hlbGxvLndvcmxkLmV4YW1wbGWCCWxvY2FsaG9zdDAKBggqhkjOPQQD
+AgNIADBFAiEAsuZKsdksPsrnJFdV9JTZ1P782IlqjqNL9aAURvrF3UkCIDDpTvE5
+EyZ5zRflnB+ZwomjXNhTAnasRjQTDqXFrQbP
+-----END CERTIFICATE-----`;
+
+const KEY = `-----BEGIN PRIVATE KEY-----
+MIGHAgEAMBMGByqGSM49AgEGCCqGSM49AwEHBG0wawIBAQQgH1VlVX/3DI37UR5g
+tGzUOSAaOmjQbZMJQ2Z9eBnzh3+hRANCAATqEc3RGoBQ2X/4pu/WeSVMnlz/emMM
+Opx/F0Tr1zhEpxNMhbZVY3Y9DUzV09pvj1s7sbI7z1QVkf7aQ5XY01vA
+-----END PRIVATE KEY-----`;
+
+const tlsConfig = {
+  serverName: 'localhost',
+  certificateChain: CERT,
+  privateKey: KEY,
+}
+
+// Wapo doesn't support to listen on a port directly, but supports listening on a domain name
+// with the corresponding TLS certificate.
+server.listen(tlsConfig, () => {
+  console.log('listening on ' + tlsConfig.serverName);
 });
